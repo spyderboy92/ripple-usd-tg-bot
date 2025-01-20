@@ -1,0 +1,2 @@
+# States for conversation handler
+START, SEND, SEND_ADDRESS, SEND_AMOUNT, RECEIVE, CHECK_BALANCE, CREATE_WALLET, HELP = range(8)
