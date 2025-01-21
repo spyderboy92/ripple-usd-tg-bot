@@ -24,6 +24,9 @@ class WalletBot:
                 states.SEND_AMOUNT: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, self.wallet_handlers.handle_send_amount)
                 ],
+                states.SEND_CONFIRMATION: [
+                    CallbackQueryHandler(self.wallet_handlers.handle_confirmation),
+                ],
                 states.CREATE_WALLET: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, self.wallet_handlers.handle_create_wallet)
                 ],

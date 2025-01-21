@@ -8,6 +8,7 @@ class WalletHandlers:
 
     def __init__(self):
         self.wallets = {}  # Stores user wallets
+        self.transaction_data = {}
 
     async def start(self, update: Update, context) -> int:
         """Displays the main menu with inline buttons."""
@@ -23,7 +24,7 @@ class WalletHandlers:
         return states.START
 
     async def button_handler(self, update: Update, context) -> int:
-        """Handles button clicks."""
+        """Runs when state reaches states.START"""
         query = update.callback_query
         await query.answer()
 
@@ -50,24 +51,43 @@ class WalletHandlers:
     async def handle_send_address(self, update: Update, context) -> int:
         """Handles receiving the recipient's address."""
         context.user_data['address'] = update.message.text
+        self.transaction_data["address"] = context.user_data['address']
         await update.message.reply_text("Enter the amount to send:")
         return states.SEND_AMOUNT
 
-    async def handle_send_amount(self, update: Update, context) -> int:
-        """Handles sending funds."""
-        wallet = self.get_user_wallet(update.callback_query.from_user.id)
-        address = context.user_data['address']
-        try:
-            amount = float(update.message.text)
-            if wallet.send(amount, address):
-                await update.message.reply_text(
-                    f"Transaction successful! Your new balance is {wallet.check_balance()} USD."
-                )
-            else:
-                await update.message.reply_text("Transaction failed. Insufficient balance.")
-        except ValueError:
-            await update.message.reply_text("Invalid amount. Please try again.")
-        return await self.start(update.callback_query.message, context)
+    async def handle_send_amount(self, update: Update, context):
+        """Handle the amount input."""
+        amount = update.message.text
+        self.transaction_data["amount"] = amount
+
+        # Send confirmation message with InlineKeyboard
+        keyboard = [
+            [
+                InlineKeyboardButton("Confirm", callback_data="confirm"),
+                InlineKeyboardButton("Cancel", callback_data="cancel"),
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(
+            f"Confirm the transaction:\nAddress: {self.transaction_data['address']}\n"
+            f"Amount: {self.transaction_data['amount']}\n",
+            reply_markup=reply_markup
+        )
+        return states.SEND_CONFIRMATION
+
+    async def handle_confirmation(self, update: Update, context) -> int:
+        """Handle confirmation or cancellation."""
+        query = update.callback_query
+        await query.answer()
+
+        if query.data == "confirm":
+            # Process the transaction
+            await query.edit_message_text("Transaction confirmed! Sending funds...")
+            # Add logic to send funds here
+        else:
+            await query.edit_message_text("Entered: " + query.data + "Transaction canceled.")
+
+        return states.START
 
     async def receive_funds(self, update: Update, context) -> int:
         """Displays the user's wallet address and QR code."""
@@ -79,7 +99,7 @@ class WalletHandlers:
         await context.bot.send_photo(
             chat_id=update.effective_chat.id,
             photo=qr_code,
-            caption=f"Wallet Address: {wallet.wallet_address}",
+            caption=f"WALLET ADDRESS: {wallet.wallet_address}",
         )
         return await self.start(update.callback_query.message, context)
 
@@ -87,7 +107,7 @@ class WalletHandlers:
         """Checks and displays the user's wallet balance."""
         wallet = self.get_user_wallet(update.callback_query.from_user.id)
         if wallet.wallet_address:
-            await update.callback_query.message.reply_text(f"Your balance is {wallet.check_balance()} USD.")
+            await update.callback_query.message.reply_text(f"Your balance is {wallet.check_balance(wallet.wallet_address)} USD.")
         else:
             await update.callback_query.message.reply_text("No wallet created.")
         return await self.start(update.callback_query.message if update.callback_query else update.message, context)
