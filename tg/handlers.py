@@ -17,12 +17,18 @@ class WalletHandlers:
         keyboard = [
             [InlineKeyboardButton("Send", callback_data='send')],
             [InlineKeyboardButton("Receive", callback_data='receive')],
-            [InlineKeyboardButton("Check Balance", callback_data='check_balance')],
-            [InlineKeyboardButton("Create Wallet", callback_data='create_wallet')],
+            [InlineKeyboardButton(
+                "Check Balance", callback_data='check_balance')],
+            [InlineKeyboardButton(
+                "Create Wallet", callback_data='create_wallet')],
             [InlineKeyboardButton("Help", callback_data='help')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text("Welcome to Ripple USD bot!!Choose an option:", reply_markup=reply_markup)
+        if update.message:  # When invoked via a command (e.g., /start)
+            await update.message.reply_text("Welcome to Ripple USD bot!! Choose an option:", reply_markup=reply_markup)
+        elif update.callback_query:  # When invoked via a callback query
+            await update.callback_query.message.reply_text("Welcome to Ripple USD bot!! Choose an option:",
+                                                           reply_markup=reply_markup)
         return states.START
 
     async def button_handler(self, update: Update, context) -> int:
@@ -85,7 +91,7 @@ class WalletHandlers:
         if query.data == "confirm":
             # Process the transaction
             wallet = self.get_user_wallet(update.callback_query.from_user.id)
-            self.wallet_util.send_xrp(wallet.wallet_seed, self.transaction_data["amount"], self.transaction_data["address"])
+            await self.wallet_util.send_xrp(wallet.wallet_seed, self.transaction_data["amount"], self.transaction_data["address"])
             await query.edit_message_text("Transaction confirmed! Sending funds...")
             # Add logic to send funds here
         else:
@@ -116,7 +122,7 @@ class WalletHandlers:
         else:
             balance = await self.wallet_util.check_balance(wallet.wallet_address)
             await update.callback_query.message.reply_text(f"Your balance is {balance}.")
-        return await self.start(update.callback_query.message if update.callback_query else update.message, context)
+        # return await self.start(update.callback_query.message if update.callback_query else update.message, context)
 
     async def create_wallet(self, update: Update, context) -> int:
         """Starts the wallet creation process."""
@@ -144,8 +150,8 @@ class WalletHandlers:
         wallet_seed = response["wallet_seed"]
         new_wallet = Wallet(user_id, wallet_address, wallet_seed, wallet_name)
         self.wallets[user_id] = new_wallet
-        await update.message.reply_text("Wallet has been created. Address: "+ wallet_address)
-        return await self.start(update.message, context)
+        await update.message.reply_text("Wallet has been created. Address: " + wallet_address)
+        # return await self.start(update.message, context)
 
     async def help_command(self, update: Update, context) -> int:
         """Displays help information."""
@@ -158,7 +164,7 @@ class WalletHandlers:
             "- Help: Show this help message"
         )
         await update.callback_query.message.reply_text(help_text)
-        return await self.start(update.callback_query.message, context)
+        # return await self.start(update.callback_query.message, context)
 
     def get_user_wallet(self, user_id: int) -> XrpWalletUtil:
         """Retrieves or creates a wallet for the user."""

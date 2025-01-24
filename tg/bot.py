@@ -6,6 +6,7 @@ from handlers import WalletHandlers
 
 class WalletBot:
     """Telegram bot for wallet management."""
+
     def __init__(self, token: str):
         self.application = Application.builder().token(token).build()
         self.wallet_handlers = WalletHandlers()
@@ -19,16 +20,20 @@ class WalletBot:
                     CallbackQueryHandler(self.wallet_handlers.button_handler),
                 ],
                 states.SEND_ADDRESS: [
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.wallet_handlers.handle_send_address)
+                    MessageHandler(filters.TEXT & ~filters.COMMAND,
+                                   self.wallet_handlers.handle_send_address)
                 ],
                 states.SEND_AMOUNT: [
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.wallet_handlers.handle_send_amount)
+                    MessageHandler(filters.TEXT & ~filters.COMMAND,
+                                   self.wallet_handlers.handle_send_amount)
                 ],
                 states.SEND_CONFIRMATION: [
-                    CallbackQueryHandler(self.wallet_handlers.handle_confirmation),
+                    CallbackQueryHandler(
+                        self.wallet_handlers.handle_confirmation),
                 ],
                 states.CREATE_WALLET: [
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.wallet_handlers.handle_create_wallet)
+                    MessageHandler(filters.TEXT & ~filters.COMMAND,
+                                   self.wallet_handlers.handle_create_wallet)
                 ],
             },
             fallbacks=[CommandHandler('start', self.wallet_handlers.start)],

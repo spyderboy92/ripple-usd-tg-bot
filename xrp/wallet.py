@@ -5,4 +5,3 @@ class Wallet:
         self.wallet_address = wallet_address
         self.wallet_seed = wallet_seed
         self.wallet_name = wallet_name
-
