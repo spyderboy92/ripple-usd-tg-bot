@@ -1,14 +1,16 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from tg import states
-from xrp.xrpwallet import XrpWallet
+from xrp.wallet import Wallet
+from xrp.xrp_wallet_util import XrpWalletUtil
 
 
 class WalletHandlers:
     """Handles the Telegram bot's commands and messages."""
 
     def __init__(self):
-        self.wallets = {}  # Stores user wallets
+        self.wallets = {}  # in-memory storage, TODO: Move to DB
         self.transaction_data = {}
+        self.wallet_util = XrpWalletUtil()
 
     async def start(self, update: Update, context) -> int:
         """Displays the main menu with inline buttons."""
@@ -82,6 +84,8 @@ class WalletHandlers:
 
         if query.data == "confirm":
             # Process the transaction
+            wallet = self.get_user_wallet(update.callback_query.from_user.id)
+            self.wallet_util.send_xrp(wallet.wallet_seed, self.transaction_data["amount"], self.transaction_data["address"])
             await query.edit_message_text("Transaction confirmed! Sending funds...")
             # Add logic to send funds here
         else:
@@ -91,11 +95,12 @@ class WalletHandlers:
 
     async def receive_funds(self, update: Update, context) -> int:
         """Displays the user's wallet address and QR code."""
-        wallet = self.get_user_wallet(update.callback_query.from_user.id)
-        if not wallet.wallet_address:
+        user_id = update.callback_query.from_user.id
+        wallet = self.get_user_wallet(user_id)
+        if wallet is None:
             await update.callback_query.message.reply_text("No wallet created. Please create one first.")
             return await self.start(update.callback_query.message, context)
-        qr_code = wallet.generate_qr_code()
+        qr_code = self.wallet_util.generate_qr_code(wallet.wallet_address)
         await context.bot.send_photo(
             chat_id=update.effective_chat.id,
             photo=qr_code,
@@ -106,23 +111,40 @@ class WalletHandlers:
     async def check_balance(self, update: Update, context) -> int:
         """Checks and displays the user's wallet balance."""
         wallet = self.get_user_wallet(update.callback_query.from_user.id)
-        if wallet.wallet_address:
-            await update.callback_query.message.reply_text(f"Your balance is {wallet.check_balance(wallet.wallet_address)} USD.")
-        else:
+        if wallet is None:
             await update.callback_query.message.reply_text("No wallet created.")
+        else:
+            balance = await self.wallet_util.check_balance(wallet.wallet_address)
+            await update.callback_query.message.reply_text(f"Your balance is {balance}.")
         return await self.start(update.callback_query.message if update.callback_query else update.message, context)
 
     async def create_wallet(self, update: Update, context) -> int:
         """Starts the wallet creation process."""
-        await update.callback_query.message.reply_text("Enter your wallet name:")
-        return states.CREATE_WALLET
+        user_id = update.callback_query.from_user.id
+        wallet = self.get_user_wallet(user_id)
+        # If wallet already exists, no need to create
+        if wallet != None:
+            await update.callback_query.message.reply_text("Wallet has been already created.")
+            return states.START
+        else:
+            await update.callback_query.message.reply_text("Enter your wallet name:")
+            return states.CREATE_WALLET
 
     async def handle_create_wallet(self, update: Update, context) -> int:
         """Creates a wallet with the specified name."""
-        wallet = self.get_user_wallet(update.message.from_user.id)
+        user_id = update.message.from_user.id
         wallet_name = update.message.text
-        response = await wallet.create_wallet(wallet_name)  # Await the coroutine
-        await update.message.reply_text(response)
+        wallet = self.get_user_wallet(user_id)
+        if wallet != None:
+            await update.message.reply_text("Wallet has been already created.")
+            return await self.start(update.message, context)
+
+        response = await self.wallet_util.create_wallet()  # Await the coroutine
+        wallet_address = response["wallet_address"]
+        wallet_seed = response["wallet_seed"]
+        new_wallet = Wallet(user_id, wallet_address, wallet_seed, wallet_name)
+        self.wallets[user_id] = new_wallet
+        await update.message.reply_text("Wallet has been created. Address: "+ wallet_address)
         return await self.start(update.message, context)
 
     async def help_command(self, update: Update, context) -> int:
@@ -138,8 +160,8 @@ class WalletHandlers:
         await update.callback_query.message.reply_text(help_text)
         return await self.start(update.callback_query.message, context)
 
-    def get_user_wallet(self, user_id: int) -> XrpWallet:
+    def get_user_wallet(self, user_id: int) -> XrpWalletUtil:
         """Retrieves or creates a wallet for the user."""
-        if user_id not in self.wallets:
-            self.wallets[user_id] = XrpWallet(user_id)
-        return self.wallets[user_id]
+        # if user_id not in self.wallets:
+        #     self.wallets[user_id] = XrpWalletUtil(user_id)
+        return self.wallets.get(user_id)
