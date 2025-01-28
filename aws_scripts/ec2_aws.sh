@@ -30,7 +30,7 @@ pip install -r requirements.txt
 # Set PYTHONPATH and run the bot
 echo "Starting the bot..."
 export PYTHONPATH=$(pwd)
-export BOT_API_KEY=<ADD_HERE>
+export BOT_API_KEY=CHANGE_THIS
 nohup python tg/bot.py &
 
 echo "Bot is running in the background."
